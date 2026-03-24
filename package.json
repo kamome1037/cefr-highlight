@@ -4,6 +4,10 @@
   "description": "Highlight English words by CEFR level (A1–C2) with semantic tokens and hover definitions",
   "version": "0.3.0",
   "publisher": "kamome",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamome/cefr-highlight"
+  },
   "engines": {
     "vscode": "^1.82.0"
   },

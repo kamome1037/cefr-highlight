@@ -9,6 +9,8 @@ A VSCode/Cursor extension that highlights English vocabulary by CEFR level (A1�
 - **Hover tooltips** — hover over a word or phrase to see its CEFR level, part of speech, and Chinese translation (via Google Translate)
 - **Configurable** — customize colors, minimum level threshold, and phrase background
 
+![CEFR Highlight in action](images/highlight-example.png)
+
 ## Color Legend
 
 | Level | Default Color | Emoji | Description |

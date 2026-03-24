@@ -144,7 +144,7 @@ impl LanguageServer for Backend {
         Ok(InitializeResult {
             server_info: Some(ServerInfo {
                 name: "cefr-lsp-server".to_string(),
-                version: Some("0.2.0".to_string()),
+                version: Some("0.3.0".to_string()),
             }),
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Options(
