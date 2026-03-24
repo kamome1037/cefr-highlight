@@ -1,0 +1,6 @@
+{
+  "comments": {},
+  "brackets": [],
+  "autoClosingPairs": [],
+  "wordPattern": "[a-zA-Z'-]+"
+}

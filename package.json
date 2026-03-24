@@ -2,18 +2,25 @@
   "name": "cefr-highlight",
   "displayName": "CEFR Highlight",
   "description": "Highlight English words by CEFR level (A1–C2) with semantic tokens and hover definitions",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "kamome",
   "engines": {
     "vscode": "^1.82.0"
   },
   "categories": ["Programming Languages", "Education"],
   "activationEvents": [
-    "onLanguage:plaintext",
-    "onLanguage:markdown"
+    "onLanguage:cefr"
   ],
   "main": "./client/out/extension.js",
   "contributes": {
+    "languages": [
+      {
+        "id": "cefr",
+        "aliases": ["CEFR Text", "cefr"],
+        "extensions": [".cefr"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
     "semanticTokenTypes": [
       { "id": "cefrA1", "superType": "variable", "description": "CEFR A1 — Beginner" },
       { "id": "cefrA2", "superType": "variable", "description": "CEFR A2 — Elementary" },
@@ -21,6 +28,9 @@
       { "id": "cefrB2", "superType": "variable", "description": "CEFR B2 — Upper-intermediate" },
       { "id": "cefrC1", "superType": "variable", "description": "CEFR C1 — Advanced" },
       { "id": "cefrC2", "superType": "variable", "description": "CEFR C2 — Proficiency" }
+    ],
+    "semanticTokenModifiers": [
+      { "id": "phrase", "description": "Multi-word CEFR phrase" }
     ],
     "semanticTokenScopes": [
       {
@@ -34,8 +44,65 @@
         }
       }
     ],
+    "configuration": {
+      "title": "CEFR Highlight",
+      "properties": {
+        "cefrHighlight.minimumLevel": {
+          "type": "string",
+          "default": "A1",
+          "enum": ["A1", "A2", "B1", "B2", "C1", "C2"],
+          "enumDescriptions": [
+            "Show all levels (A1 and above)",
+            "Show A2 and above",
+            "Show B1 and above",
+            "Show B2 and above",
+            "Show C1 and above",
+            "Show C2 only"
+          ],
+          "description": "Only highlight words at or above this CEFR level."
+        },
+        "cefrHighlight.colors.A1": {
+          "type": "string",
+          "default": "#9E9E9E",
+          "description": "Foreground color for A1 (Beginner) words."
+        },
+        "cefrHighlight.colors.A2": {
+          "type": "string",
+          "default": "#F9A825",
+          "description": "Foreground color for A2 (Elementary) words."
+        },
+        "cefrHighlight.colors.B1": {
+          "type": "string",
+          "default": "#4CAF50",
+          "description": "Foreground color for B1 (Intermediate) words."
+        },
+        "cefrHighlight.colors.B2": {
+          "type": "string",
+          "default": "#2196F3",
+          "description": "Foreground color for B2 (Upper-intermediate) words."
+        },
+        "cefrHighlight.colors.C1": {
+          "type": "string",
+          "default": "#9C27B0",
+          "description": "Foreground color for C1 (Advanced) words."
+        },
+        "cefrHighlight.colors.C2": {
+          "type": "string",
+          "default": "#E53935",
+          "description": "Foreground color for C2 (Proficiency) words."
+        },
+        "cefrHighlight.phraseBackground": {
+          "type": "string",
+          "default": "rgba(255, 235, 59, 0.15)",
+          "description": "Background color for multi-word CEFR phrases."
+        }
+      }
+    },
     "configurationDefaults": {
       "editor.semanticHighlighting.enabled": true,
+      "[cefr]": {
+        "editor.semanticHighlighting.enabled": true
+      },
       "editor.semanticTokenColorCustomizations": {
         "rules": {
           "cefrA1": { "foreground": "#9E9E9E", "fontStyle": "" },
