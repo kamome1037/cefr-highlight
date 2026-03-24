@@ -2,7 +2,7 @@
   "name": "cefr-highlight",
   "displayName": "CEFR Highlight",
   "description": "Highlight English words by CEFR level (A1–C2) with semantic tokens and hover definitions",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "kamome",
   "engines": {
     "vscode": "^1.82.0"
@@ -46,7 +46,7 @@
       "properties": {
         "cefrHighlight.minimumLevel": {
           "type": "string",
-          "default": "A1",
+          "default": "B2",
           "enum": ["A1", "A2", "B1", "B2", "C1", "C2"],
           "enumDescriptions": [
             "Show all levels (A1 and above)",
@@ -60,32 +60,32 @@
         },
         "cefrHighlight.colors.A1": {
           "type": "string",
-          "default": "#9E9E9E",
+          "default": "#BDBDBD",
           "description": "Foreground color for A1 (Beginner) words."
         },
         "cefrHighlight.colors.A2": {
           "type": "string",
-          "default": "#F9A825",
+          "default": "#43A047",
           "description": "Foreground color for A2 (Elementary) words."
         },
         "cefrHighlight.colors.B1": {
           "type": "string",
-          "default": "#4CAF50",
+          "default": "#1E88E5",
           "description": "Foreground color for B1 (Intermediate) words."
         },
         "cefrHighlight.colors.B2": {
           "type": "string",
-          "default": "#2196F3",
+          "default": "#8E24AA",
           "description": "Foreground color for B2 (Upper-intermediate) words."
         },
         "cefrHighlight.colors.C1": {
           "type": "string",
-          "default": "#9C27B0",
+          "default": "#CDDC39",
           "description": "Foreground color for C1 (Advanced) words."
         },
         "cefrHighlight.colors.C2": {
           "type": "string",
-          "default": "#E53935",
+          "default": "#FB8C00",
           "description": "Foreground color for C2 (Proficiency) words."
         },
         "cefrHighlight.phraseBackground": {
@@ -102,12 +102,12 @@
       },
       "editor.semanticTokenColorCustomizations": {
         "rules": {
-          "cefrA1": { "foreground": "#9E9E9E", "fontStyle": "" },
-          "cefrA2": { "foreground": "#F9A825", "fontStyle": "" },
-          "cefrB1": { "foreground": "#4CAF50", "fontStyle": "" },
-          "cefrB2": { "foreground": "#2196F3", "fontStyle": "" },
-          "cefrC1": { "foreground": "#9C27B0", "fontStyle": "" },
-          "cefrC2": { "foreground": "#E53935", "fontStyle": "bold" }
+          "cefrA1": { "foreground": "#BDBDBD", "fontStyle": "" },
+          "cefrA2": { "foreground": "#43A047", "fontStyle": "" },
+          "cefrB1": { "foreground": "#1E88E5", "fontStyle": "" },
+          "cefrB2": { "foreground": "#8E24AA", "fontStyle": "" },
+          "cefrC1": { "foreground": "#CDDC39", "fontStyle": "" },
+          "cefrC2": { "foreground": "#FB8C00", "fontStyle": "bold" }
         }
       }
     }

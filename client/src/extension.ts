@@ -44,12 +44,12 @@ function getColorConfig(): Record<string, string> {
 
 function getDefaultColor(level: string): string {
   const defaults: Record<string, string> = {
-    A1: "#9E9E9E",
-    A2: "#F9A825",
-    B1: "#4CAF50",
-    B2: "#2196F3",
-    C1: "#9C27B0",
-    C2: "#E53935",
+    A1: "#BDBDBD",
+    A2: "#43A047",
+    B1: "#1E88E5",
+    B2: "#8E24AA",
+    C1: "#CDDC39",
+    C2: "#FB8C00",
   };
   return defaults[level] ?? "#FFFFFF";
 }

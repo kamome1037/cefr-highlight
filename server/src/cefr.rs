@@ -8,10 +8,6 @@ pub struct CefrEntry {
     pub level: String,
     #[serde(default)]
     pub part_of_speech: String,
-    #[serde(default)]
-    pub topic: String,
-    #[serde(default)]
-    pub source: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

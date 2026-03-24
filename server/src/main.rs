@@ -1,5 +1,6 @@
 mod cefr;
 mod tokenizer;
+mod translate;
 
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -31,7 +32,7 @@ struct CefrSettings {
 }
 
 fn default_min_level() -> String {
-    "A1".to_string()
+    "B2".to_string()
 }
 
 impl Default for CefrSettings {
@@ -308,24 +309,22 @@ impl LanguageServer for Backend {
                 && position.character < phrase.start_char + phrase.length
             {
                 if let Some(entries) = cefr::lookup_phrase(&phrase.phrase_key) {
-                    let mut lines = Vec::new();
-                    for entry in entries {
-                        if let Some(level) = cefr::CefrLevel::from_str(&entry.level) {
-                            let mut parts =
-                                vec![format!("**{}** — {} (phrase)", entry.term, level.label())];
-                            if !entry.part_of_speech.is_empty() {
-                                parts.push(format!("*{}*", entry.part_of_speech));
-                            }
-                            if !entry.topic.is_empty() {
-                                parts.push(format!("Topic: {}", entry.topic));
-                            }
-                            lines.push(parts.join(" | "));
-                        }
-                    }
+                    let entry = match entries.first() {
+                        Some(e) => e,
+                        None => continue,
+                    };
+                    let level = match cefr::CefrLevel::from_str(&entry.level) {
+                        Some(l) => l,
+                        None => continue,
+                    };
+
+                    let chinese = translate::to_chinese(&entry.term).await;
+                    let md = format_hover_md(&entry.term, level, &entry.part_of_speech, true, chinese.as_deref());
+
                     return Ok(Some(Hover {
                         contents: HoverContents::Markup(MarkupContent {
                             kind: MarkupKind::Markdown,
-                            value: lines.join("\n\n"),
+                            value: md,
                         }),
                         range: Some(Range {
                             start: Position::new(phrase.line, phrase.start_char),
@@ -343,36 +342,83 @@ impl LanguageServer for Backend {
                 && position.character < span.start_char + span.length
         });
 
-        let hover = hovered.and_then(|span| {
-            let entries = cefr::lookup(&span.word)?;
-            let mut lines = Vec::new();
+        let hover = match hovered {
+            Some(span) => {
+                let entries = match cefr::lookup(&span.word) {
+                    Some(e) => e,
+                    None => return Ok(None),
+                };
+                let entry = match entries.first() {
+                    Some(e) => e,
+                    None => return Ok(None),
+                };
+                let level = match cefr::CefrLevel::from_str(&entry.level) {
+                    Some(l) => l,
+                    None => return Ok(None),
+                };
 
-            for entry in entries {
-                let level = cefr::CefrLevel::from_str(&entry.level)?;
-                let mut parts = vec![format!("**{}** — {}", entry.term, level.label())];
-                if !entry.part_of_speech.is_empty() {
-                    parts.push(format!("*{}*", entry.part_of_speech));
-                }
-                if !entry.topic.is_empty() {
-                    parts.push(format!("Topic: {}", entry.topic));
-                }
-                lines.push(parts.join(" | "));
+                let chinese = translate::to_chinese(&entry.term).await;
+                let md = format_hover_md(&entry.term, level, &entry.part_of_speech, false, chinese.as_deref());
+
+                Some(Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: md,
+                    }),
+                    range: Some(Range {
+                        start: Position::new(span.line, span.start_char),
+                        end: Position::new(span.line, span.start_char + span.length),
+                    }),
+                })
             }
-
-            Some(Hover {
-                contents: HoverContents::Markup(MarkupContent {
-                    kind: MarkupKind::Markdown,
-                    value: lines.join("\n\n"),
-                }),
-                range: Some(Range {
-                    start: Position::new(span.line, span.start_char),
-                    end: Position::new(span.line, span.start_char + span.length),
-                }),
-            })
-        });
+            None => None,
+        };
 
         Ok(hover)
     }
+}
+
+fn level_emoji(level: cefr::CefrLevel) -> &'static str {
+    match level {
+        cefr::CefrLevel::A1 => "⚪",
+        cefr::CefrLevel::A2 => "🟢",
+        cefr::CefrLevel::B1 => "🔵",
+        cefr::CefrLevel::B2 => "🟣",
+        cefr::CefrLevel::C1 => "🟡",
+        cefr::CefrLevel::C2 => "🟠",
+    }
+}
+
+fn format_hover_md(
+    term: &str,
+    level: cefr::CefrLevel,
+    pos: &str,
+    is_phrase: bool,
+    chinese: Option<&str>,
+) -> String {
+    let emoji = level_emoji(level);
+    let kind = if is_phrase { " · phrase" } else { "" };
+    let pos_str = if pos.is_empty() {
+        String::new()
+    } else {
+        format!(" · *{}*", pos)
+    };
+
+    let mut md = format!(
+        "### {} {}\n\n{} **{}**{}{}\n\n",
+        emoji,
+        term,
+        emoji,
+        level.label(),
+        kind,
+        pos_str,
+    );
+
+    if let Some(zh) = chinese {
+        md.push_str(&format!("---\n\n📖 **{}**\n", zh));
+    }
+
+    md
 }
 
 #[tokio::main]
