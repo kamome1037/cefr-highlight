@@ -7,7 +7,6 @@
       "command": "cargo build --release",
       "options": { "cwd": "${workspaceFolder}/server" },
       "group": "build",
-      "problemMatcher": ["$rustc"]
     },
     {
       "label": "build:client",
