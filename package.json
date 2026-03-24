@@ -1,0 +1,60 @@
+{
+  "name": "cefr-highlight",
+  "displayName": "CEFR Highlight",
+  "description": "Highlight English words by CEFR level (A1–C2) with semantic tokens and hover definitions",
+  "version": "0.1.0",
+  "publisher": "kamome",
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "categories": ["Programming Languages", "Education"],
+  "activationEvents": [
+    "onLanguage:plaintext",
+    "onLanguage:markdown"
+  ],
+  "main": "./client/out/extension.js",
+  "contributes": {
+    "semanticTokenTypes": [
+      { "id": "cefrA1", "superType": "variable", "description": "CEFR A1 — Beginner" },
+      { "id": "cefrA2", "superType": "variable", "description": "CEFR A2 — Elementary" },
+      { "id": "cefrB1", "superType": "variable", "description": "CEFR B1 — Intermediate" },
+      { "id": "cefrB2", "superType": "variable", "description": "CEFR B2 — Upper-intermediate" },
+      { "id": "cefrC1", "superType": "variable", "description": "CEFR C1 — Advanced" },
+      { "id": "cefrC2", "superType": "variable", "description": "CEFR C2 — Proficiency" }
+    ],
+    "semanticTokenScopes": [
+      {
+        "scopes": {
+          "cefrA1": ["markup.other.cefrA1"],
+          "cefrA2": ["markup.other.cefrA2"],
+          "cefrB1": ["markup.other.cefrB1"],
+          "cefrB2": ["markup.other.cefrB2"],
+          "cefrC1": ["markup.other.cefrC1"],
+          "cefrC2": ["markup.other.cefrC2"]
+        }
+      }
+    ],
+    "configurationDefaults": {
+      "editor.semanticHighlighting.enabled": true,
+      "editor.semanticTokenColorCustomizations": {
+        "rules": {
+          "cefrA1": { "foreground": "#9E9E9E", "fontStyle": "" },
+          "cefrA2": { "foreground": "#F9A825", "fontStyle": "" },
+          "cefrB1": { "foreground": "#4CAF50", "fontStyle": "" },
+          "cefrB2": { "foreground": "#2196F3", "fontStyle": "" },
+          "cefrC1": { "foreground": "#9C27B0", "fontStyle": "" },
+          "cefrC2": { "foreground": "#E53935", "fontStyle": "bold" }
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "cd client && npm run compile",
+    "watch": "cd client && npm run watch",
+    "build:server": "cd server && cargo build --release"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.82.0",
+    "typescript": "^5.3.0"
+  }
+}
