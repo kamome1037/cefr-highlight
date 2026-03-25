@@ -6,12 +6,15 @@ import {
   workspace,
   commands,
   Uri,
+  TextDocument,
   TextDocumentContentProvider,
   CancellationToken,
   TextEditorDecorationType,
   Range,
   Position,
   ConfigurationTarget,
+  Tab,
+  TabInputTextDiff,
 } from "vscode";
 import {
   LanguageClient,
@@ -39,10 +42,90 @@ interface PhraseRangesNotification {
 const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
 
 const MEMORY_ORIGINAL_SCHEME = "cefr-memory-original";
+const MEMORY_RECALL_DIFF_SCHEME = "cefr-memory-recall-diff";
 const STORAGE_MEMORY_SESSION = "cefrHighlight.memoryRecallSessionId";
 const STORAGE_MEMORY_RECALL_URI = "cefrHighlight.memoryRecallRecallUri";
 
 const memoryOriginalBySession = new Map<string, string>();
+const memoryRecallDiffBySession = new Map<string, string>();
+const memoryRecallStartedAtMs = new Map<string, number>();
+/** After the first mismatch diff was opened, the next submit ends the session (closes draft, no new diff). */
+const memoryRecallDiffWasOpened = new Map<string, boolean>();
+
+/** Strips horizontal whitespace at the end of each line (does not trim line-start indent). */
+function stripTrailingWhitespacePerLine(text: string): string {
+  return text.replace(/[^\S\r\n]+$/gm, "");
+}
+
+/** Same normalization as the diff view, plus unified newlines, for an exact “correct” check. */
+function normalizeForRecallCompare(text: string): string {
+  const lf = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  return stripTrailingWhitespacePerLine(lf);
+}
+
+async function clearMemoryRecallSession(
+  context: ExtensionContext,
+  sessionId: string
+): Promise<void> {
+  memoryOriginalBySession.delete(sessionId);
+  memoryRecallDiffBySession.delete(sessionId);
+  memoryRecallStartedAtMs.delete(sessionId);
+  memoryRecallDiffWasOpened.delete(sessionId);
+  await context.workspaceState.update(STORAGE_MEMORY_SESSION, undefined);
+  await context.workspaceState.update(STORAGE_MEMORY_RECALL_URI, undefined);
+}
+
+async function closeMemoryRecallDiffTabs(sessionId: string): Promise<void> {
+  const tabsToClose: Tab[] = [];
+  for (const group of window.tabGroups.all) {
+    for (const tab of group.tabs) {
+      const input = tab.input;
+      if (input instanceof TabInputTextDiff) {
+        const oid = memorySessionIdFromUri(input.original);
+        const mid = memorySessionIdFromUri(input.modified);
+        if (
+          oid === sessionId &&
+          mid === sessionId &&
+          input.original.scheme === MEMORY_ORIGINAL_SCHEME &&
+          input.modified.scheme === MEMORY_RECALL_DIFF_SCHEME
+        ) {
+          tabsToClose.push(tab);
+        }
+      }
+    }
+  }
+  if (tabsToClose.length > 0) {
+    await window.tabGroups.close(tabsToClose);
+  }
+}
+
+async function closeRecallDraftTabAndDeleteIfFile(
+  recallDoc: TextDocument
+): Promise<void> {
+  const recallUri = recallDoc.uri;
+  const wasUntitled = recallDoc.isUntitled;
+  await window.showTextDocument(recallDoc);
+  await commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+  if (!wasUntitled && recallUri.scheme === "file") {
+    try {
+      await workspace.fs.delete(recallUri, { useTrash: true });
+    } catch {
+      /* closed or already removed */
+    }
+  }
+}
+
+function formatWritingDuration(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const parts: string[] = [];
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0) parts.push(`${m}m`);
+  if (s > 0 || parts.length === 0) parts.push(`${s}s`);
+  return parts.join(" ");
+}
 
 function memorySessionIdFromUri(uri: Uri): string | undefined {
   const name = uri.path.replace(/^\/+/, "");
@@ -53,7 +136,15 @@ function memorySessionIdFromUri(uri: Uri): string | undefined {
 class MemoryOriginalProvider implements TextDocumentContentProvider {
   provideTextDocumentContent(uri: Uri, _token: CancellationToken): string {
     const id = memorySessionIdFromUri(uri);
-    return id ? memoryOriginalBySession.get(id) ?? "" : "";
+    const raw = id ? memoryOriginalBySession.get(id) ?? "" : "";
+    return stripTrailingWhitespacePerLine(raw);
+  }
+}
+
+class MemoryRecallDiffProvider implements TextDocumentContentProvider {
+  provideTextDocumentContent(uri: Uri, _token: CancellationToken): string {
+    const id = memorySessionIdFromUri(uri);
+    return id ? memoryRecallDiffBySession.get(id) ?? "" : "";
   }
 }
 
@@ -76,6 +167,9 @@ async function startMemoryRecall(context: ExtensionContext): Promise<void> {
   const previousId = context.workspaceState.get<string>(STORAGE_MEMORY_SESSION);
   if (previousId) {
     memoryOriginalBySession.delete(previousId);
+    memoryRecallDiffBySession.delete(previousId);
+    memoryRecallStartedAtMs.delete(previousId);
+    memoryRecallDiffWasOpened.delete(previousId);
   }
 
   const sessionId = randomUUID();
@@ -87,6 +181,7 @@ async function startMemoryRecall(context: ExtensionContext): Promise<void> {
     content: "",
   });
   await window.showTextDocument(doc, { preview: false });
+  memoryRecallStartedAtMs.set(sessionId, Date.now());
   await context.workspaceState.update(STORAGE_MEMORY_RECALL_URI, doc.uri.toString());
 
   void window.showInformationMessage(
@@ -105,35 +200,105 @@ async function submitMemoryRecall(context: ExtensionContext): Promise<void> {
     return;
   }
 
-  const active = window.activeTextEditor;
-  if (!active) {
-    void window.showWarningMessage("Open the recall tab you started, then run this command again.");
-    return;
-  }
+  await closeMemoryRecallDiffTabs(sessionId);
 
   const expectedUri = context.workspaceState.get<string>(STORAGE_MEMORY_RECALL_URI);
-  if (expectedUri && active.document.uri.toString() !== expectedUri) {
+  const recallDocFromState = expectedUri
+    ? workspace.textDocuments.find((d) => d.uri.toString() === expectedUri)
+    : undefined;
+
+  const active = window.activeTextEditor;
+  const activeUri = active?.document.uri;
+
+  const onOurDiffVirtual = (uri: Uri | undefined) =>
+    !!uri &&
+    (uri.scheme === MEMORY_ORIGINAL_SCHEME || uri.scheme === MEMORY_RECALL_DIFF_SCHEME) &&
+    memorySessionIdFromUri(uri) === sessionId;
+
+  let recallDoc: TextDocument | undefined = recallDocFromState;
+
+  if (!recallDoc && active && activeUri && !onOurDiffVirtual(activeUri)) {
+    if (!expectedUri || activeUri.toString() === expectedUri) {
+      recallDoc = active.document;
+    }
+  }
+
+  if (
+    !recallDoc &&
+    active &&
+    activeUri &&
+    !onOurDiffVirtual(activeUri) &&
+    expectedUri &&
+    activeUri.toString() !== expectedUri
+  ) {
     const choice = await window.showWarningMessage(
       "The active editor is not your recall draft. Compare the active file to the stored original anyway?",
       "Compare anyway",
       "Cancel"
     );
-    if (choice !== "Compare anyway") {
+    if (choice === "Compare anyway") {
+      recallDoc = active.document;
+    } else {
       return;
     }
   }
+
+  if (!recallDoc) {
+    void window.showWarningMessage(
+      "Open your recall draft (where you typed from memory), then submit again."
+    );
+    return;
+  }
+
+  const startedAt = memoryRecallStartedAtMs.get(sessionId);
+  const elapsedMs =
+    startedAt !== undefined ? Date.now() - startedAt : 0;
+  const durationLabel = formatWritingDuration(elapsedMs);
+
+  const repeatAfterDiff = memoryRecallDiffWasOpened.get(sessionId) === true;
+
+  const matches =
+    normalizeForRecallCompare(original) ===
+    normalizeForRecallCompare(recallDoc.getText());
+
+  if (matches) {
+    await closeRecallDraftTabAndDeleteIfFile(recallDoc);
+    await clearMemoryRecallSession(context, sessionId);
+    void window.showInformationMessage(
+      `Correct — writing time: ${durationLabel}. Recall tab closed.`
+    );
+    return;
+  }
+
+  if (repeatAfterDiff) {
+    await closeRecallDraftTabAndDeleteIfFile(recallDoc);
+    await clearMemoryRecallSession(context, sessionId);
+    void window.showInformationMessage(
+      "Session closed — diff closed and recall draft removed."
+    );
+    return;
+  }
+
+  memoryRecallDiffBySession.set(
+    sessionId,
+    stripTrailingWhitespacePerLine(recallDoc.getText())
+  );
 
   const leftUri = Uri.from({
     scheme: MEMORY_ORIGINAL_SCHEME,
     path: `/${sessionId}.txt`,
   });
+  const rightUri = Uri.from({
+    scheme: MEMORY_RECALL_DIFF_SCHEME,
+    path: `/${sessionId}.txt`,
+  });
 
-  await commands.executeCommand(
-    "vscode.diff",
-    leftUri,
-    active.document.uri,
-    "CEFR memory recall — original ↔ your text"
-  );
+  const diffTitle = `CEFR memory recall — ${durationLabel} — original ↔ your text (EOL spaces ignored)`;
+
+  await commands.executeCommand("vscode.diff", leftUri, rightUri, diffTitle);
+  memoryRecallDiffWasOpened.set(sessionId, true);
+
+  void window.showInformationMessage(`Writing time: ${durationLabel}.`);
 }
 
 function getColorConfig(): Record<string, string> {
@@ -273,11 +438,16 @@ export function activate(context: ExtensionContext) {
     });
   });
 
-  const memoryProvider = new MemoryOriginalProvider();
+  const memoryOriginalProvider = new MemoryOriginalProvider();
+  const memoryRecallDiffProvider = new MemoryRecallDiffProvider();
   context.subscriptions.push(
     workspace.registerTextDocumentContentProvider(
       MEMORY_ORIGINAL_SCHEME,
-      memoryProvider
+      memoryOriginalProvider
+    ),
+    workspace.registerTextDocumentContentProvider(
+      MEMORY_RECALL_DIFF_SCHEME,
+      memoryRecallDiffProvider
     )
   );
 
