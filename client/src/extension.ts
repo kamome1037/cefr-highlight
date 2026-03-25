@@ -127,6 +127,17 @@ function formatWritingDuration(ms: number): string {
   return parts.join(" ");
 }
 
+/** Whitespace-separated tokens in the recall draft (what you typed). */
+function countWordsTyped(text: string): number {
+  const t = text.trim();
+  if (!t) return 0;
+  return t.split(/\s+/).length;
+}
+
+function formatWordCountLabel(n: number): string {
+  return `${n} word${n === 1 ? "" : "s"}`;
+}
+
 function memorySessionIdFromUri(uri: Uri): string | undefined {
   const name = uri.path.replace(/^\/+/, "");
   if (!name.endsWith(".txt")) return undefined;
@@ -254,6 +265,8 @@ async function submitMemoryRecall(context: ExtensionContext): Promise<void> {
   const elapsedMs =
     startedAt !== undefined ? Date.now() - startedAt : 0;
   const durationLabel = formatWritingDuration(elapsedMs);
+  const wordsTyped = countWordsTyped(recallDoc.getText());
+  const wordsLabel = formatWordCountLabel(wordsTyped);
 
   const repeatAfterDiff = memoryRecallDiffWasOpened.get(sessionId) === true;
 
@@ -265,7 +278,7 @@ async function submitMemoryRecall(context: ExtensionContext): Promise<void> {
     await closeRecallDraftTabAndDeleteIfFile(recallDoc);
     await clearMemoryRecallSession(context, sessionId);
     void window.showInformationMessage(
-      `Correct — writing time: ${durationLabel}. Recall tab closed.`
+      `Correct — writing time: ${durationLabel} (${wordsLabel} typed). Recall tab closed.`
     );
     return;
   }
@@ -293,12 +306,14 @@ async function submitMemoryRecall(context: ExtensionContext): Promise<void> {
     path: `/${sessionId}.txt`,
   });
 
-  const diffTitle = `CEFR memory recall — ${durationLabel} — original ↔ your text (EOL spaces ignored)`;
+  const diffTitle = `CEFR memory recall — ${durationLabel}, ${wordsLabel} — original ↔ your text (EOL spaces ignored)`;
 
   await commands.executeCommand("vscode.diff", leftUri, rightUri, diffTitle);
   memoryRecallDiffWasOpened.set(sessionId, true);
 
-  void window.showInformationMessage(`Writing time: ${durationLabel}.`);
+  void window.showInformationMessage(
+    `Writing time: ${durationLabel} (${wordsLabel} typed).`
+  );
 }
 
 function getColorConfig(): Record<string, string> {
