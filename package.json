@@ -99,6 +99,18 @@
         }
       }
     },
+    "commands": [
+      {
+        "command": "cefrHighlight.startMemoryRecall",
+        "title": "Start paragraph memory recall",
+        "category": "CEFR Highlight"
+      },
+      {
+        "command": "cefrHighlight.submitMemoryRecall",
+        "title": "Submit memory recall (show diff)",
+        "category": "CEFR Highlight"
+      }
+    ],
     "configurationDefaults": {
       "editor.semanticHighlighting.enabled": true,
       "[cefr]": {
